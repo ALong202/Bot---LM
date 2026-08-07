@@ -1,3 +1,13 @@
+## Project Status
+
+The Lords Mobile Bot project is now on hold.
+
+Unfortunately, I can no longer continue maintaining and developing it on my own. The biggest challenge has been the lack of contributors, and I don't have enough free time to continue the project alone.
+
+The repository will remain public, and I'd be happy to see the project continue if anyone is interested in contributing or taking over development.
+
+Thank you to everyone who tested the bot, reported issues, suggested improvements, and supported the project throughout its development. Your support has been greatly appreciated.
+
 # Lords Mobile Bot
 
 A modular, high-performance Lords Mobile bot written in C.
