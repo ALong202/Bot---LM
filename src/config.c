@@ -202,13 +202,9 @@ static bool ParserConfig(Connection *c, const char *key, const char *value) {
 		return true;
 	}
 	
-	if (strcmp(key, "protection.shield_always_on") == 0) {
-		c->protection.enabled = (strcmp(value, "true") == 0);
-		return true;
-	}
 	
 	if (strcmp(key, "protection.shield_always_on") == 0) {
-		c->protection.enabled = (strcmp(value, "true") == 0);
+		c->protection.shield_always_on = (strcmp(value, "true") == 0);
 		return true;
 	}
 	

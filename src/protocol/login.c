@@ -48,7 +48,14 @@ void RequestGuestLogIn(Connection *c)
     
     // rewrite total packet length 
     write_u16(c->data, c->size);
-    
+    printf("igg_id=%llu\n", (unsigned long long)c->auth.igg_id);
+    printf("device_uuid='%s'\n", c->auth.device_uuid);
+    printf("session_len=%u\n", c->auth.session_len);
+    printf("version=%u.%u.%u\n",
+       c->app.version_major,
+       c->app.version_minor,
+       c->app.version_patch);
+
     // call send packet
     send_packet(c, false);
 }
@@ -93,6 +100,13 @@ void RequestLogIn(Connection *c) {
     c->size += 512;
 
     write_u16(c->data, c->size);
+	printf("igg_id=%llu\n", (unsigned long long)c->auth.igg_id);
+	printf("device_uuid='%s'\n", c->auth.device_uuid);
+	printf("session_len=%u\n", c->auth.session_len);
+	printf("version=%u.%u.%u\n",
+       c->app.version_major,
+       c->app.version_minor,
+       c->app.version_patch);
     
     send_packet(c, false);
 }

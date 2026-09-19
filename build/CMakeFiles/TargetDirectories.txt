@@ -1,0 +1,3 @@
+C:/msys64/home/PC/lords-mobile-bot/build/CMakeFiles/client.dir
+C:/msys64/home/PC/lords-mobile-bot/build/CMakeFiles/edit_cache.dir
+C:/msys64/home/PC/lords-mobile-bot/build/CMakeFiles/rebuild_cache.dir

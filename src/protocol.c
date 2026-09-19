@@ -7,6 +7,8 @@
 #include "log.h"
 #include <stdlib.h>
 
+#include "command.h"
+
 #include <stdarg.h>
 
 #include "MAP_UPDATE_KIND.h"
@@ -125,7 +127,12 @@ void RequestClientInitOver(Connection *c) {
 	
 	write_u16(c->data, c->size);
     
-    send_packet(c, true);
+
+
+
+    	send_packet(c, true);
+    //send_packet(c, false);
+
 }
 
 void RequestHeartBeat(Connection *c) {
@@ -354,11 +361,33 @@ typedef struct {
 
 
 bool SendResource(Connection *c, Resources resource, uint16_t zoneId, uint8_t pointId) {
+
+	printf("[SEND_RESOURCE] CALLED zone=%u point=%u food=%u rock=%u wood=%u ore=%u gold=%u\n",
+       		zoneId,
+       		pointId,
+       		resource.food,
+       		resource.rock,
+       		resource.wood,
+       		resource.ore,
+       		resource.gold);	
+
 	c->size = 2;
 	
 	write_u16(c->data + c->size, _MSG_REQUEST_SEND_RESHELP);   c->size += 2;
-	write_u32(c->data + c->size, ++c->protocol.seq_id);                 c->size += 4;
 	
+	//write_u32(c->data + c->size, ++c->protocol.seq_id);        
+
+
+	
+	uint32_t seq = ++c->protocol.seq_id;
+
+	printf("[SEND_RESOURCE] seq=%u (0x%08X)\n", seq, seq);
+
+	write_u32(c->data + c->size, seq);
+	c->size += 4;
+	
+
+
 	write_u16(c->data + c->size, zoneId);  c->size += 2;
 	write_u8 (c->data + c->size, pointId); c->size += 1;
 	
@@ -369,6 +398,20 @@ bool SendResource(Connection *c, Resources resource, uint16_t zoneId, uint8_t po
 	write_u32(c->data + c->size, resource.gold); c->size += 4;
 	
 	write_u16(c->data, c->size); // update packet size
+
+
+	printf("[SEND_RESOURCE] PLAINTEXT:");
+	for (uint16_t i = 0; i < c->size; i++)
+    		printf(" %02X", c->data[i]);
+	printf("\n");
+
+
+	
+	printf("[SEND_RESOURCE] PACKET size=%u type=%u seq=%u\n",
+	       	c->size,
+       		_MSG_REQUEST_SEND_RESHELP,
+       		c->protocol.seq_id);	
+	
 	send_packet(c, true);
 	return 1;
 }
@@ -1095,6 +1138,11 @@ void HandleLoginValidate(Connection *c, const uint8_t *data, uint16_t size)
 
 
 void RecvChatMessage(Connection *c, const uint8_t *data) {
+
+	printf("[CHAT BEFORE] max=%u current=%u\n",
+	       (unsigned)c->player.max_marches,
+	       (unsigned)c->player.current_marches);
+
 	char player_name[13] = {0};
 	char title_name[3] = {0};
 	char str1[20] = {0};
@@ -1102,9 +1150,9 @@ void RecvChatMessage(Connection *c, const uint8_t *data) {
 	char message[4096] = {0};
 	uint16_t offset = 0;
 	
-	memset(c->chat.player_name, 0,   13);
-	memset(c->chat.message,     0, 4096);
-	
+	//memset(c->chat.player_name, 0,   13);
+	//memset(c->chat.message,     0, 4096);
+	memset(&c->chat, 0, sizeof(c->chat));
 	
 	printf("RecvChatMessage\n");
 	
@@ -1181,15 +1229,32 @@ void RecvChatMessage(Connection *c, const uint8_t *data) {
 				printf("message_emoji_key: %u\n", message_emoji_key);
 				printf("message_num10: %u\n", message_num10);
 			} else if (num8 == 0) {
-				read_bytes(c->chat.message, data + offset, num9);
+
+
+				uint16_t msg_len = num9;
+
+				if (msg_len >= sizeof(c->chat.message)) {
+			    		msg_len = sizeof(c->chat.message) - 1;
+				}
+
+				read_bytes(c->chat.message, data + offset, msg_len);
 				offset += num9;
-				c->chat.message[num9] = '\0';
+				c->chat.message[msg_len] = '\0';
+
+				//read_bytes(c->chat.message, data + offset, num9);
+				//offset += num9;
+				//c->chat.message[num9] = '\0';
 				// memcpy(res.player_name, player_name, 13);
 				//p.read_bytes(message, num9);
 			}
 		}
 	}
 	
+	
+	printf("[CHAT AFTER] max=%u current=%u\n",
+	       (unsigned)c->player.max_marches,
+	       (unsigned)c->player.current_marches);
+		
 	return;
 }
 
@@ -1301,21 +1366,49 @@ void RecvIBuffInfo(Connection *c, const uint8_t *data) {
 	c->shield_info.loaded = true;
 }
 
-void RecvMarchData(Connection *c, const uint8_t *data) {
-	uint16_t offset = 0;
-	c->player.max_marches     = read_u8(data + offset); offset += 1;
-	c->player.current_marches = read_u8(data + offset); offset += 1;
-	
-	// There is more data include troops and location 
-	
-	printf("RecvMarchData\n");
-	printf("max_marches: %u\n", c->player.max_marches);
-	printf("current_matches: %u\n", c->player.current_marches);
-	
-	// c->transfer.max_marches = c->player.max_marches;
-	
-	return;
+
+void RecvMarchData(Connection *c, const uint8_t *data)
+{
+    uint16_t offset = 0;
+
+    c->player.max_marches =
+        read_u8(data + offset);
+    offset += 1;
+
+    c->player.current_marches =
+        read_u8(data + offset);
+    offset += 1;
+
+    printf("[MARCH DATA] c=%p max=%u current=%u\n",
+           (void *)c,
+           (unsigned)c->player.max_marches,
+           (unsigned)c->player.current_marches);
+
+    printf("[MARCH DEBUG] SET: current=%u max=%u\n",
+           (unsigned)c->player.current_marches,
+           (unsigned)c->player.max_marches);
+
+    // There is more data include troops and location
+
+    printf("[MARCH DATA] max=%u current=%u\n",
+           (unsigned)c->player.max_marches,
+           (unsigned)c->player.current_marches);
+
+    printf("[MARCH DATA] player name=%s zone=%u point=%u\n",
+           c->player.name,
+           c->player.zone_id,
+           c->player.point_id);
+
+    // c->transfer.max_marches = c->player.max_marches;
+
+    printf("[MARCH DATA END] max=%u current=%u\n",
+           (unsigned)c->player.max_marches,
+           (unsigned)c->player.current_marches);
+
+    return;
 }
+
+
 
 
 uint16_t RoleAttrLevelUp(const uint8_t *data, int UpdateFlag) {
@@ -2359,12 +2452,29 @@ const char *GiftStatusToString(uint8_t status)
 	}
 }
 
-void RecvAllianceGiftInfo(Connection *c, const uint8_t *data) {
+/*void RecvAllianceGiftInfo(Connection *c, const uint8_t *data) {
 	if (!c->alliance.auto_open_gifts) return;
 	
 	uint16_t offset = 0;
 	
-	eMsgState AllianceGiftState = (eMsgState)read_u8(data + offset); offset += 1;
+	eMsgState AllianceGiftState = (eMsgState)read_u8(data + offset); offset += 1; */
+
+void RecvAllianceGiftInfo(Connection *c, const uint8_t *data) {
+    if (!c->alliance.auto_open_gifts)
+        return;
+
+    uint16_t offset = 0;
+
+    uint8_t raw_state = read_u8(data + offset);
+    offset += 1;
+
+    uint8_t raw_count = read_u8(data + offset);
+    offset += 1;
+
+    
+    eMsgState AllianceGiftState = (eMsgState)raw_state;
+    uint8_t gift_count = raw_count;
+
 	
 	/*
 	switch (AllianceGiftState) {
@@ -2383,7 +2493,7 @@ void RecvAllianceGiftInfo(Connection *c, const uint8_t *data) {
 	}
 	*/
 	
-	uint8_t gift_count = read_u8(data + offset); offset += 1;
+	//uint8_t gift_count = read_u8(data + offset); offset += 1;
 	
 	if (gift_count == 0) return;
 	
@@ -2421,12 +2531,26 @@ void RecvAllianceGiftInfo(Connection *c, const uint8_t *data) {
 		c->alliance.gift_offset++;
 	}
 	
-	if (AllianceGiftState == EMS_End || AllianceGiftState == EMS_BeginAndEnd) {
+	/*if (AllianceGiftState == EMS_End || AllianceGiftState == EMS_BeginAndEnd) {
 		c->alliance.gift_offset = 0;
 		printf("[GIFT] TOTAL COUNT: %u\n", c->alliance.gift_count);
 		
 		printf("[GIFT] UNOPENED COUNT: %u\n", c->alliance.unopened_gift_count);
-	}
+	}*/
+
+	if (AllianceGiftState == EMS_End || AllianceGiftState == EMS_BeginAndEnd) {
+	        c->alliance.gift_offset = 0;
+
+        	printf("[GIFT] TOTAL COUNT: %u\n", c->alliance.gift_count);
+        	printf("[GIFT] UNOPENED COUNT: %u\n",
+        	       c->alliance.unopened_gift_count);
+
+        	c->alliance.gift_state = GIFT_STATE_READY;
+
+        	
+}
+	
+
 }
 
 void RecvAllianceGiftOpen(Connection *c, const uint8_t *data) {
@@ -2453,7 +2577,7 @@ void RecvAllianceGiftOpen(Connection *c, const uint8_t *data) {
 	
 	printf("[OPENED] GIFT ID %u\n", sn);
 	
-	return;
+	/*return;*/
 	
 	for (int i = 0; i < c->alliance.gift_count; i++) {
 		AllianceGift *gift = &c->alliance.gifts[i];
@@ -2930,7 +3054,7 @@ void ShieldTick(Connection *c)
 	UsePriorityShield(c);
 }
 
-void AllianceGiftTick(Connection *c) {
+/*void AllianceGiftTick(Connection *c) {
 	if (!c->alliance.auto_open_gifts) 
 		return;
 	
@@ -2951,6 +3075,56 @@ void AllianceGiftTick(Connection *c) {
 		}
 	}
 	return;
+}*/
+
+
+void AllianceGiftTick(Connection *c)
+{
+    if (!c->alliance.auto_open_gifts) {
+        //printf("[GIFT DEBUG] STOP: auto_open_gifts = false\n");
+        return;
+    }
+
+    if (c->alliance.gift_count == 0) {
+        //printf("[GIFT DEBUG] STOP: gift_count = 0\n");
+        return;
+    }
+
+    if (c->alliance.gift_state != GIFT_STATE_READY) {
+        //printf("[GIFT DEBUG] STOP: state is not READY (%d)\n",
+               //c->alliance.gift_state);
+        return;
+    }
+
+    for (int i = c->alliance.gift_offset;
+         i < c->alliance.gift_count;
+         i++)
+    {
+        AllianceGift *gift = &c->alliance.gifts[i];
+
+        /*printf("[GIFT DEBUG] gift[%d]: sn=%u status=%u\n",
+               i,
+               gift->sn,
+               gift->status);
+	*/
+
+        if (gift->status == 0) {
+            /*printf("[GIFT DEBUG] OPEN candidate: SN=%u\n",
+                   gift->sn);
+		*/
+		
+            RequestOpenAllianceGift(c, gift->sn);
+
+            c->alliance.gift_state = GIFT_STATE_OPENING;
+
+            /*printf("[GIFT DEBUG] OPEN request sent: SN=%u\n",
+                   gift->sn);
+		*/
+
+            return;
+        }
+    }
+
 }
 
 
@@ -4182,7 +4356,36 @@ uint32_t CalculateTransferAmount(Connection *c)
 
 // currently food sending available for testing purpose 
 void SendResourceMarch(Connection *c) {
-	if (c->player.current_marches >= c->player.max_marches) return;
+
+	
+	printf("[SEND MARCH] c=%p max=%u current=%u remaining=%u\n",
+	    (void *)c,
+	    (unsigned)c->player.max_marches,
+	    (unsigned)c->player.current_marches,
+	    (unsigned)c->transfer.remaining);
+
+    	printf("[TRANSFER] SendResourceMarch: current=%u max=%u remaining=%u capacity=%u\n",
+           c->player.current_marches,
+           c->player.max_marches,
+           c->transfer.remaining,
+           c->supply_capacity);
+
+   	 if (c->player.max_marches == 0) {
+        	//printf("[TRANSFER] ERROR: max_marches is 0!\n");
+        	return;
+    	}
+
+   	 if (c->player.current_marches >= c->player.max_marches) {
+    	    printf("[TRANSFER] BLOCKED: all march slots are occupied\n");
+    	    return;
+    	}
+	
+	
+
+	if (c->player.current_marches >= c->player.max_marches) {
+        	printf("[TRANSFER] BLOCKED: march capacity reached\n");
+        	return;
+    	}
 	
 	if (c->transfer.remaining == 0) {
 		c->transfer.state = TRANSFER_COMPLETE;
@@ -4226,10 +4429,33 @@ void SendResourceMarch(Connection *c) {
 
 void ResourceTransferTick(Connection *c)
 {
+	if (c->transfer.state != TRANSFER_IDLE) {
+    		printf("[TRANSFER] state=%d remaining=%u capacity=%u marches=%u/%u\n",
+           	c->transfer.state,
+           	c->transfer.remaining,
+           	c->supply_capacity,
+           	c->player.current_marches,
+           	c->player.max_marches);
+	}	
 	if (c->transfer.state == TRANSFER_IDLE) return;
 	
 	// Bot doesn't have trading post yet
-	if (c->supply_capacity == 0) return;
+	if (c->supply_capacity == 0)  {
+    	
+	printf("[TRANSFER] state=%d remaining=%u capacity=%u marches=%u/%u\n",
+	    (int)c->transfer.state,
+	    (unsigned)c->transfer.remaining,
+	    (unsigned)c->supply_capacity,
+	    (unsigned)c->player.current_marches,
+	    (unsigned)c->player.max_marches);
+ 
+	return;}
+
+	printf("[TRANSFER DEBUG] TICK: player max=%u current=%u transfer max=%u cur=%u\n",
+	       (unsigned)c->player.max_marches,
+	       (unsigned)c->player.current_marches,
+	       (unsigned)c->transfer.max_marches,
+	       (unsigned)c->transfer.cur_marches);
 	
 	switch (c->transfer.state) {
 		case TRANSFER_FIND_TARGET:
@@ -4265,15 +4491,37 @@ void ResourceTransferTick(Connection *c)
 }
 
 void RecvSHelp(Connection *c, const uint8_t *data) {
-	uint16_t offset = 0;
 	
-	uint8_t b = read_u8(data + offset); offset += 1;
+	/* uint16_t offset = 0;
+	
+	uint8_t b = read_u8(data + offset); 
+	
+	offset += 1;
 	
 	// b == 1 means max march reached 
 	if (b != 0) {
 		c->transfer.state = TRANSFER_FAILED;
 		return;
-	}
+	} */
+
+	    uint16_t offset = 0;
+
+	    uint8_t b = read_u8(data + offset);
+	    offset += 1;
+
+	    printf("[RESHELP] response b=%u (0x%02X)\n", b, b);
+
+	    if (b != 0) {
+	        printf("[RESHELP] FAILED: server returned code=%u (0x%02X)\n",
+	               b, b);
+
+	        c->transfer.state = TRANSFER_FAILED;
+	        return;
+	    }
+
+	    printf("[RESHELP] SUCCESS response\n");
+
+
 	
 	// marches counts
 	uint8_t b2 = read_u8(data + offset); offset += 1;

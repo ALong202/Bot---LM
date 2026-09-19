@@ -161,7 +161,11 @@ void ProcessConnection(Connection *c)
 			}
 #endif
 
-			LOGE("Recv error\n");
+			#ifdef _WIN32
+			LOGE("Recv error: WSAGetLastError()=%d\n", WSAGetLastError());
+			#else
+			LOGE("Recv error: errno=%d (%s)\n", errno, strerror(errno));
+			#endif
 			break;
 		}
 		
@@ -182,6 +186,26 @@ void ProcessConnection(Connection *c)
 			c->sin.size = s->packet_size - 4;
 			memcpy(c->sin.data, s->buffer + s->parse_pos + 4, s->packet_size - 4);
 			
+
+
+			printf("[RX] type=%u (%s) size=%u\n",
+			       s->packet_type,
+			       get_packet_name(s->packet_type),
+			       s->packet_size);
+
+			if (s->packet_type >= 2452 && s->packet_type <= 2455) {
+			    	printf("[RESHELP RX] type=%u size=%u\n",
+			        s->packet_type,
+           			s->packet_size);
+
+			dump_data("RESHELP RX DATA", "",
+              			s->buffer + s->parse_pos + 4,
+              			s->packet_size - 4);
+			}
+
+
+
+
 			switch(s->packet_type) {
 				case _MSG_RESP_LOGINVALIDATE:
 					HandleLoginValidate(c, s->buffer + s->parse_pos + 4, s->packet_size - 4);
@@ -245,11 +269,16 @@ void ProcessConnection(Connection *c)
 					RecvIBuffInfo(c, s->buffer + s->parse_pos + 4);
 					break;
 				case _MSG_MARCH_MARCHEVENTDATA:
+					printf("[PACKET] MARCH_MARCHEVENTDATA received\n");
 					RecvMarchData(c, s->buffer + s->parse_pos + 4);
 					break;
 				case _MSG_LOGIN_ROLEINFO: 
 					RecvLoginRoleInfo(c, s->buffer + s->parse_pos + 4, s->packet_size - 4);
-					
+					printf("[ROLEINFO AFTER] c=%p max=%u current=%u\n",
+					       (void *)c,
+       						c->player.max_marches,
+       						c->player.current_marches);
+						
 					
 					pos = getTileMapPosbyPointCode(c->player.zone_id, c->player.point_id);
 					
@@ -293,7 +322,7 @@ void ProcessConnection(Connection *c)
 					break;
 				case _MSG_RESP_ALLIANCE_HELP: 
 					printf("_MSG_RESP_ALLIANCE_HELP\n");
-					// RecvAllianceHelp(c, s->buffer + s->parse_pos + 4);
+					RecvAllianceHelp(c, s->buffer + s->parse_pos + 4);
 					break;
 				case 0xB26:
 					RecvAllianceMemberNeedsHelp(c, s->buffer + s->parse_pos + 4);
@@ -301,25 +330,35 @@ void ProcessConnection(Connection *c)
 				case 0x0B23:
 					RecvPendingAllianceMembersNeedHelp(c, s->buffer + s->parse_pos + 4);
 					break;
-				case 0x0B2F: 
+				/*case 0x0B2F: 
 					RecvAllianceGiftInfo(c, s->buffer + s->parse_pos + 4);
-					break;
+					break;*/
+
+				case 0x0B2F:
+    					printf("[GIFT DEBUG] RECEIVED 0x0B2F, size=%u\n", s->packet_size);
+    					dump_data("GIFT_INFO", "", 
+              					s->buffer + s->parse_pos + 4,
+              					s->packet_size - 4);
+
+    					RecvAllianceGiftInfo(c, s->buffer + s->parse_pos + 4);
+    					break;
+				
 				case 0x0b33: 
 					RecvDeleteAllianceGiftBox(c, s->buffer + s->parse_pos + 4);
 					break;
 				case _MSG_RESP_USEITEM: 
 					RecvUseItem(c, s->buffer + s->parse_pos + 4, s->packet_size - 4);
-					// dump_data("_MSG_RESP_USEITEM", "", s->buffer + s->parse_pos, s->packet_size);
+					dump_data("_MSG_RESP_USEITEM", "", s->buffer + s->parse_pos, s->packet_size);
 					break;
 				case 0x0B31: 
 					RecvAllianceGiftOpen(c, s->buffer + s->parse_pos + 4);
 					break;
 				case _MSG_RESP_BUYITEM: 
 					RecvBuyItem(c, s->buffer + s->parse_pos + 4, s->packet_size - 4);
-					// dump_data("_MSG_RESP_BUYITEM", "", s->buffer + s->parse_pos, s->packet_size);
+					dump_data("_MSG_RESP_BUYITEM", "", s->buffer + s->parse_pos, s->packet_size);
 					break;
 				case _MSG_RESP_WORLD_TELEPORT_ITEM:
-					// dump_data("_MSG_RESP_WORLD_TELEPORT_ITEM", "", s->buffer + s->parse_pos + 4, s->packet_size + 4);
+					dump_data("_MSG_RESP_WORLD_TELEPORT_ITEM", "", s->buffer + s->parse_pos + 4, s->packet_size + 4);
 					break;
 				case _MSG_REQUEST_ALLIANCE_INFO:
 					RecvAllianceInfo(c, s->buffer + s->parse_pos + 4);
@@ -455,8 +494,8 @@ void Configuration(Connection *client)
 	
 	// Game Version And Language
 	client->app.version_major = 2;
-	client->app.version_minor = 197;
-	client->app.version_patch = 307;
+	client->app.version_minor = 196;
+	client->app.version_patch = 312;
 	client->app.language_code = 1;   // g_config.language_code;
 	
 	
@@ -818,7 +857,7 @@ int main(int argc, const char *argv[]) {
 	
 	Connection client = {0};
 	
-	// Configuration(&client);
+	Configuration(&client);
 	
 	if (!LoadConfig(&client, argv[1])) {
 		LOGE("Failed to load config\n");

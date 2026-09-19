@@ -65,6 +65,12 @@ void SuperUserAccess(Connection *c,
 }
 
 void command_handler(Connection *c, const char *player_name, const char *message) {
+	
+	printf("[CMD DEBUG] prefix=%c player=%s message='%s'\n",
+       		c->bot.command_prefix,
+	        player_name,
+	        message);
+	
 	if (c->bot.command_prefix == 0) return;
 	
 	if (message[0] != c->bot.command_prefix) return;
@@ -75,6 +81,10 @@ void command_handler(Connection *c, const char *player_name, const char *message
 	if (memcmp(message, "food", 4) == 0 && (message[4] == '\0' || message[4] == ' '))
 	{
 		// if (c->bank.enabled || strcmp(c->bot.admin_name, player_name) == 0) {
+			
+			printf("[CMD] FOOD command received: player=%s message='%s'\n",
+       				player_name, message);
+
 			ResourceCommandHandler(c, player_name, message + 4, RESOURCE_FOOD, "food");
 		// }
 		return;
@@ -169,6 +179,18 @@ static void ResourceCommandHandler(
     const char *name
 )
 {
+
+
+	printf("[RESOURCE CMD] BEFORE: c=%p max=%u current=%u\n",
+	        (void *)c,
+        	(unsigned)c->player.max_marches,
+        	(unsigned)c->player.current_marches);
+
+	
+	
+	printf("[TRANSFER] ResourceCommandHandler: player=%s message='%s'\n",
+           player_name, message);
+	
 	
 	if (c->transfer.state != TRANSFER_IDLE) {
 		// Same player -> replace current pending request 
@@ -249,7 +271,20 @@ static void ResourceCommandHandler(
 	
 	strcpy(c->transfer.target_name, player_name);
 	
+	printf("[TRANSFER] Request accepted: target=%s amount=%u\n",
+       		c->transfer.target_name,
+       		c->transfer.amount);
+		
 	c->transfer.state = TRANSFER_FIND_TARGET;
+
+	printf("[TRANSFER DEBUG] AFTER INIT: player max=%u current=%u transfer max=%u cur=%u\n",
+       		(unsigned)c->player.max_marches,
+		(unsigned)c->player.current_marches,
+		(unsigned)c->transfer.max_marches,
+	       	(unsigned)c->transfer.cur_marches);
+		
+	printf("[TRANSFER] state -> TRANSFER_FIND_TARGET\n");
+	
 }
 
 
